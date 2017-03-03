@@ -1,7 +1,9 @@
 ﻿from datetime import datetime
+from collections import namedtuple
 
 import requests
 from bs4 import BeautifulSoup
+from lxml import etree
 
 
 def get_lighrail_departures(num_departures):
@@ -41,14 +43,74 @@ def get_lighrail_departures(num_departures):
     return next_departures[:num_departures]
 
 
-def get_bus_departures():
-    url = ('http://mybusnow.njtransit.com/bustime/wireless/html/eta.jsp?'
-           'route=87&direction=Hoboken&id=21061&showAllBusses=off')
+def get_bus_estimates():
+    time_url = ('http://mybusnow.njtransit.com/bustime/map/'
+                'getStopsForRouteDirection.jsp?route=87&'
+                'direction=Hoboken&key=0.439088592145791')
 
-    response = requests.get(url)
+    response = requests.get(time_url)
+
+    tree = etree.fromstring(response.content)
+
+    bus_times = {}  # type: Dict[int, str]
+
+    for bus in tree.findall('pre'):
+        id = int(bus.find('v'))
+
+        if bus.find('pu').strip() == 'MINUTES':
+            estimate = bus.find('pt') + ' minutes'
+        else:
+            estimate = bus.find('pu').strip().lower()
+
+        bus_times[id] = estimate
+
+    return bus_times
 
 
-lr_departures = get_lighrail_departures(3)
+BusInfo = namedtuple('BusInfo', ['id', 'lat', 'lon', 'njt_estimate'])
 
-for lrd in lr_departures:
-    print(lrd.strftime('%-I:%M %p'))
+
+def get_bus_locations():
+    location_url = ('http://mybusnow.njtransit.com/bustime/map/'
+                    'getBusesForRoute.jsp?route=87')
+
+    response = requests.get(location_url)
+
+    tree = etree.fromstring(response.content)
+
+    buses = []
+
+    for bus in tree.findall('bus'):
+        id = int(bus.find('id').text)
+        lat = bus.find('lat').text
+        lon = bus.find('lon').text
+
+        buses.append(BusInfo(id, lat, lon, ''))
+
+    return buses
+
+
+def get_bus_infos():
+    bus_estimates = get_bus_estimates()
+
+    bus_infos = get_bus_locations()
+
+    for bus in bus_infos:
+        if bus.id in bus_estimates:
+            bus.njt_estimate = bus_estimates[bus.id]
+
+    return bus_infos
+
+
+def main() -> None:
+    lr_departures = get_lighrail_departures(3)
+    for lrd in lr_departures:
+        print(lrd.strftime('%-I:%M %p'))
+
+    bus_infos = get_bus_infos()
+    for bus in bus_infos:
+        print(bus)
+
+
+if __name__ == '__main__':
+    main()
