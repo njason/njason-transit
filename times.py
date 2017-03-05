@@ -44,9 +44,9 @@ def get_lighrail_departures(num_departures):
 
 
 def get_bus_estimates():
-    time_url = ('http://mybusnow.njtransit.com/bustime/map/'
-                'getStopsForRouteDirection.jsp?route=87&'
-                'direction=Hoboken&key=0.439088592145791')
+    time_url = ('http://mybusnow.njtransit.com/bustime/eta/'
+                'getStopPredictionsETA.jsp?route=all&stop=21061&'
+                'key=0.9878138302668902')
 
     response = requests.get(time_url)
 
@@ -55,12 +55,12 @@ def get_bus_estimates():
     bus_times = {}  # type: Dict[int, str]
 
     for bus in tree.findall('pre'):
-        id = int(bus.find('v'))
+        id = int(bus.find('v').text)
 
-        if bus.find('pu').strip() == 'MINUTES':
-            estimate = bus.find('pt') + ' minutes'
+        if bus.find('pu').text.strip() == 'MINUTES':
+            estimate = bus.find('pt').text + ' minutes'
         else:
-            estimate = bus.find('pu').strip().lower()
+            estimate = bus.find('pu').text.strip().lower()
 
         bus_times[id] = estimate
 
@@ -81,11 +81,11 @@ def get_bus_locations():
     buses = []
 
     for bus in tree.findall('bus'):
-        id = int(bus.find('id').text)
-        lat = bus.find('lat').text
-        lon = bus.find('lon').text
-
-        buses.append(BusInfo(id, lat, lon, ''))
+        buses.append({
+            'id': int(bus.find('id').text),
+            'lat': bus.find('lat').text,
+            'lon': bus.find('lon').text
+        })
 
     return buses
 
@@ -93,16 +93,20 @@ def get_bus_locations():
 def get_bus_infos():
     bus_estimates = get_bus_estimates()
 
-    bus_infos = get_bus_locations()
+    bus_locations = get_bus_locations()
 
-    for bus in bus_infos:
-        if bus.id in bus_estimates:
-            bus.njt_estimate = bus_estimates[bus.id]
+    bus_infos = []
+
+    for bus in bus_locations:
+        id = bus['id']
+        if id in bus_estimates:
+            bus_infos.append(BusInfo(id, bus['lat'], bus['lon'],
+                                     bus_estimates[id]))
 
     return bus_infos
 
 
-def main() -> None:
+def main():
     lr_departures = get_lighrail_departures(3)
     for lrd in lr_departures:
         print(lrd.strftime('%-I:%M %p'))
