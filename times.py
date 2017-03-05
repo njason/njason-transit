@@ -45,8 +45,7 @@ def get_lighrail_departures(num_departures):
 
 def get_bus_estimates():
     time_url = ('http://mybusnow.njtransit.com/bustime/eta/'
-                'getStopPredictionsETA.jsp?route=all&stop=21061&'
-                'key=0.9878138302668902')
+                'getStopPredictionsETA.jsp?route=all&stop=21061')
 
     response = requests.get(time_url)
 
