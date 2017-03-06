@@ -6,14 +6,20 @@ from bs4 import BeautifulSoup
 from lxml import etree
 
 
-def get_lighrail_departures(num_departures):
+BusInfo = namedtuple('BusInfo', ['id', 'lat', 'lon', 'njt_estimate'])
+LocationInfo = namedtuple('LocationInfo', ['lr_origin_id', 'lr_origin_desc',
+                                           'lr_dest_id', 'lr_dest_desc',
+                                           'bus_number', 'bus_stop_id'])
+
+
+def get_lighrail_departures(loc_info, num_departures):
     payload = {'selLineCode': 'HBLR',
-               'selOrigin': '38442',
-               'selDestination': '39348',
+               'selOrigin': loc_info.lr_origin_id,
+               'selDestination': loc_info.lr_dest_id,
                'datepicker': datetime.now().strftime('%m/%d/%Y'),
                'LineDescription': 'Hudson-Bergen Light Rail',
-               'OriginDescription': '9th Street - Congress Street',
-               'DestDescription': 'Hoboken'}
+               'OriginDescription': loc_info.lr_origin_desc,
+               'DestDescription': loc_info.lr_dest_desc}
 
     url = ('http://www.njtransit.com/sf/sf_servlet.srv?hdnPageAction='
            'LightRailSchedulesFrom')
@@ -43,9 +49,10 @@ def get_lighrail_departures(num_departures):
     return next_departures[:num_departures]
 
 
-def get_bus_estimates():
+def get_bus_estimates(loc_info):
     time_url = ('http://mybusnow.njtransit.com/bustime/eta/'
-                'getStopPredictionsETA.jsp?route=all&stop=21061')
+                'getStopPredictionsETA.jsp?route={0}&stop={1}'.format(
+                    loc_info.bus_number, loc_info.bus_stop_id))
 
     response = requests.get(time_url)
 
@@ -66,12 +73,10 @@ def get_bus_estimates():
     return bus_times
 
 
-BusInfo = namedtuple('BusInfo', ['id', 'lat', 'lon', 'njt_estimate'])
-
-
-def get_bus_locations():
+def get_bus_locations(loc_info):
     location_url = ('http://mybusnow.njtransit.com/bustime/map/'
-                    'getBusesForRoute.jsp?route=87')
+                    'getBusesForRoute.jsp?route={0}'.format(
+                        loc_info.bus_number))
 
     response = requests.get(location_url)
 
@@ -89,10 +94,10 @@ def get_bus_locations():
     return buses
 
 
-def get_bus_infos():
-    bus_estimates = get_bus_estimates()
+def get_bus_infos(loc_info, num_departures):
+    bus_estimates = get_bus_estimates(loc_info)
 
-    bus_locations = get_bus_locations()
+    bus_locations = get_bus_locations(loc_info)
 
     bus_infos = []
 
@@ -102,15 +107,21 @@ def get_bus_infos():
             bus_infos.append(BusInfo(id, bus['lat'], bus['lon'],
                                      bus_estimates[id]))
 
-    return bus_infos
+    return bus_infos[:num_departures]
+
+
+to_work = LocationInfo('38442', '9th Street - Congress Street', '39348',
+                       'Hoboken', '87', '21061')
+to_home = LocationInfo('39348', 'Hoboken', '38442',
+                       '9th Street - Congress Street', '87', '20496')
 
 
 def main():
-    lr_departures = get_lighrail_departures(3)
+    lr_departures = get_lighrail_departures(to_work, 3)
     for lrd in lr_departures:
         print(lrd.strftime('%-I:%M %p'))
 
-    bus_infos = get_bus_infos()
+    bus_infos = get_bus_infos(to_work, 3)
     for bus in bus_infos:
         print(bus)
 
