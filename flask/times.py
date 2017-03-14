@@ -1,4 +1,4 @@
-﻿from datetime import datetime
+﻿from datetime import datetime, timedelta
 from collections import namedtuple
 
 import requests
@@ -64,7 +64,7 @@ def get_bus_estimates(loc_info):
         id = int(bus.find('v').text)
 
         if bus.find('pu').text.strip() == 'MINUTES':
-            estimate = bus.find('pt').text + ' minutes'
+            estimate = datetime.now() + timedelta(minutes=int(bus.find('pt').text))
         else:
             estimate = bus.find('pu').text.strip().lower()
 
@@ -116,14 +116,20 @@ to_home = LocationInfo('39348', 'Hoboken', '38442',
                        '9th Street - Congress Street', '87', '20496')
 
 
+time_format = '%-I:%M %p'
+
 def main():
     lr_departures = get_lighrail_departures(to_work, 3)
+
+    print('lightrail:')
     for lrd in lr_departures:
-        print(lrd.strftime('%-I:%M %p'))
+        print(lrd.strftime(time_format))
 
     bus_infos = get_bus_infos(to_work, 3)
+
+    print('bus:')
     for bus in bus_infos:
-        print(bus)
+        print(bus.njt_estimate.strftime(time_format))
 
 
 if __name__ == '__main__':
